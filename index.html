@@ -21,10 +21,11 @@
       <div class="statusbar"><span id="dataset-count">0 dataset caricati</span><span id="bom-count">0 righe BOM</span><span id="db-version">Versione non indicata</span></div>
       <section id="setup" class="panel active">
         <div class="heading"><p class="eyebrow">01 / PREPARAZIONE</p><h2>Carica il catalogo dei processi</h2><p>Seleziona il tuo file Excel ecoinvent oppure un export CSV/TSV. Il file viene letto nel browser.</p></div>
-        <div class="card grid2"><label class="upload">Catalogo dataset <input id="dataset-file" type="file" accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values"><small>XLSX/CSV/TSV. È sufficiente la colonna Activity Name.</small></label><label>Versione e system model <input id="version" placeholder="es. ecoinvent 3.11 · cut-off"></label></div>
+        <div class="card grid2"><label class="upload">Catalogo dataset <input id="dataset-file" type="file" accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values"><small>XLSX/CSV/TSV. Dopo la conferma viene memorizzato in questo browser.</small></label><label>Versione e system model <input id="version" placeholder="es. ecoinvent 3.11 · cut-off"></label></div>
+        <div class="card cache-card"><div><strong>Catalogo su questo browser</strong><p id="catalog-cache-status">Verifica dell’archivio locale…</p></div><div class="actions"><button id="restore-catalog-btn" class="secondary hidden">Usa catalogo salvato</button><button id="remove-catalog-btn" class="ghost hidden">Rimuovi dal browser</button></div></div>
         <button id="demo-catalog-btn" class="secondary demo-button">Carica catalogo dimostrativo sintetico</button>
         <div id="dataset-map" class="card mapping hidden"></div>
-        <div class="card help"><h3>Colonne del file allegato</h3><p>Il file ecoinvent 3.11 contiene 25.412 righe. Il tool riconosce Activity Name, Geography, Special Activity Type, Sector, Unit e Product Information. Il Reference product, se presente in altri export, resta facoltativo.</p><code>Activity Name | Geography | Special Activity Type | Sector | Unit | Product Information</code><p class="muted">Il punteggio indica la somiglianza con le parole cercate. Il file allegato non specifica il system model: indicarlo manualmente prima di usare i risultati in uno studio.</p></div>
+        <div class="card help"><h3>Colonne del file allegato</h3><p>Il file ecoinvent 3.11 contiene 25.412 righe. Il tool riconosce Activity Name, Geography, Special Activity Type, Sector, Unit e Product Information. Il Reference product, se presente in altri export, resta facoltativo.</p><code>Activity Name | Geography | Special Activity Type | Sector | Unit | Product Information</code><p class="muted">La copia locale resta su questo browser e profilo; un altro PC richiede un primo caricamento. Se cancelli i dati del sito, dovrai importare di nuovo il file. Il file allegato non specifica il system model: indicarlo manualmente prima di usare i risultati in uno studio.</p></div>
       </section>
       <section id="finder" class="panel">
         <div class="heading"><p class="eyebrow">02 / RICERCA</p><h2>Dataset Finder</h2><p>Inserisci una o più parole. Il nome dell'attività pesa più della descrizione; risultati e alternative geografiche restano ispezionabili.</p></div>
@@ -42,11 +43,11 @@
         <div class="card"><div class="actions"><button id="export-btn" class="primary">Esporta mapping CSV</button><button id="save-btn" class="secondary">Salva progetto JSON</button><label class="file-button">Apri progetto JSON<input id="project-file" type="file" accept=".json,application/json"></label></div><p class="muted">Il progetto JSON include BOM e metadati del catalogo selezionato. Può contenere dati riservati: conserva il file secondo le regole aziendali.</p></div>
         <div id="qa-summary" class="qa-grid"></div><div id="qa-list" class="qa-list empty">Nessuna BOM caricata.</div>
       </section>
-      <footer>SGS Toolkit · Prototype v0.2 · La scelta dei dataset e il riesame restano al professionista responsabile.</footer>
+      <footer>SGS Toolkit · Prototype v0.3 · La scelta dei dataset e il riesame restano al professionista responsabile.</footer>
     </main>
   </div>
   <dialog id="picker"><form method="dialog"><button class="close" aria-label="Chiudi">×</button></form><p class="eyebrow" id="picker-label"></p><h2 id="picker-title">Seleziona un dataset</h2><div class="picker-search"><input id="picker-query" aria-label="Ricerca dataset"><button id="picker-search-btn" class="primary">Cerca</button></div><div id="picker-results"></div></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="vendor/jszip.min.js"></script><script src="xlsx-reader.js"></script><script src="core.js"></script><script src="app.js"></script>
+  <script src="vendor/jszip.min.js"></script><script src="xlsx-reader.js"></script><script src="core.js"></script><script src="catalog-store.js"></script><script src="app.js"></script>
 </body>
 </html>
