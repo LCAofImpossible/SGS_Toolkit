@@ -23,6 +23,14 @@ Al primo utilizzo carica il catalogo ecoinvent e conferma le colonne. Il file or
 
 Cerca le attività per una o più parole chiave. Il ranking privilegia i termini nel nome dell'attività, poi reference product se disponibile; settore e descrizione contribuiscono solo in misura minore. Puoi filtrare per geografia, unità e tipo di attività, oppure indicare una fase preferita. I risultati raggruppano le varianti geografiche della stessa attività e mostrano il motivo del punteggio. Nel BOM Mapper seleziona un dataset per fase. Puoi marcare trasformazione e finitura come **già incluse** o **non applicabili**; scrivi sempre la motivazione quando la scelta non è evidente. Mapping QA segnala passaggi mancanti, unità non in kg, disallineamenti geografici e possibili sovrapposizioni. Esporta un CSV di mappatura con metadati e rilievi oppure salva/riapri un progetto JSON.
 
+### Combinazioni candidate per un processo reale
+
+Nella sezione **Dataset Finder → Combinazioni candidate**, descrivi un prodotto o processo reale, ad esempio `ABS injection moulded cover` o `lamiera in acciaio laminata e zincata`. **Interpreta descrizione** precompila materiale, trasformazione, finitura e forma con regole lessicali. Puoi correggere ciascun campo prima di premere **Proponi combinazioni**.
+
+Il generatore restituisce fino a tre catene distinte, se disponibili: prodotto semilavorato già modellato (attività o mercato), materiale più servizio di trasformazione, oppure alternative con mercato del servizio o produzione specifica se la geografia è indicata. Usa il campo `Product Information` del catalogo per distinguere servizi che escludono il materiale dai prodotti che potrebbero già includerlo. Una finitura con input di materiale incluso o riferita a una forma incompatibile non viene aggiunta automaticamente. Vengono segnalate le unità diverse, per esempio `kg` e `m²`. Le combinazioni si possono esportare in CSV.
+
+**Le catene sono ipotesi di modellazione, non inventari verificati.** L'Excel disponibile non contiene gli scambi tecnosferici o il reference product. Occorre controllare la scheda completa del dataset, il system model, i confini, la geografia, le rese e i fattori di conversione. Una catena con una finitura non associata non è completa.
+
 Il punteggio è un ordinamento euristico della ricerca, non una misura di adeguatezza o una conferma del confine del dataset. La classificazione automatica dei processi si basa sui nomi: prima di confermare verifica scheda dataset, flussi, tecnologia, geografia, system model e rischio di doppio conteggio. Nessun contenuto ecoinvent va caricato nel repository.
 
 ## Limiti della v0.1
