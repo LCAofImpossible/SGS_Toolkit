@@ -77,3 +77,66 @@ test('milling service with unspecified workpiece inclusion is conditional', () =
   assert.deepEqual(result.chains[0].steps.map(s => s.dataset.id), ['m', 't']);
   assert.match(result.chains[0].checks.join(' '), /non includa già/);
 });
+
+test('generic plastic granulate gives distinct virgin polymer alternatives', () => {
+  const catalog = [
+    d('pp', 'market for polypropylene, granulate', 'PP.', 'GLO'),
+    d('peh', 'market for polyethylene, high density, granulate', 'PE-HD.', 'GLO'),
+    d('pel', 'market for polyethylene, low density, granulate', 'PE-LD.', 'GLO'),
+    d('pet', 'market for polyethylene terephthalate, granulate, amorphous', 'PET.', 'GLO'),
+    d('recycled', 'market for plastic granulate, unspecified, recycled', 'Recycled plastic.', 'GLO'),
+    d('waste', 'market for waste plastic, mixture', 'Waste.', 'GLO')
+  ];
+  const result = E.suggest(catalog, 'granulo di plastica');
+  assert.deepEqual(result.chains.map(c => c.steps[0].dataset.id), ['pp', 'peh', 'pel', 'pet', 'recycled']);
+  assert.match(result.notes.join(' '), /alternative tra loro/);
+});
+
+test('recycled plastic does not silently suggest virgin resin', () => {
+  const catalog = [
+    d('virgin', 'market for polypropylene, granulate', 'Virgin PP.', 'GLO'),
+    d('recycled', 'market for plastic granulate, unspecified, recycled', 'Recycled plastic.', 'GLO')
+  ];
+  assert.deepEqual(E.suggest(catalog, 'granulato di plastica riciclata').chains.map(c => c.steps[0].dataset.id), ['recycled']);
+  assert.deepEqual(E.materialAlternatives(catalog, 'plastica', { geography: 'RER' }), []);
+});
+
+test('generic plastic with moulding attaches the service separately', () => {
+  const catalog = [
+    d('pp', 'market for polypropylene, granulate', 'PP.', 'GLO'),
+    d('t', 'injection moulding', 'This is delivering the service of injection moulding. The converted amount of plastics is not included into the dataset.')
+  ];
+  const result = E.suggest(catalog, 'plastica stampata a iniezione');
+  assert.deepEqual(result.chains[0].steps.map(s => s.dataset.id), ['pp', 't']);
+});
+
+test('PET is read as PET rather than unspecified polyethylene', () => {
+  assert.equal(E.parseDescription('granuli di PET').family, 'pet');
+  assert.equal(E.parseDescription('polietilene tereftalato').family, 'pet');
+});
+
+test('specified recycled PP cannot fall back to virgin PP', () => {
+  const catalog = [
+    d('virgin', 'market for polypropylene, granulate', 'PP.', 'GLO'),
+    d('recycled', 'market for polypropylene, pellets, recycled', 'Recycled PP.', 'GLO')
+  ];
+  assert.deepEqual(E.suggest(catalog, 'polipropilene riciclato').chains.map(c => c.steps[0].dataset.id), ['recycled']);
+});
+
+test('PET granulate cannot resolve to fines', () => {
+  const catalog = [
+    d('fines', 'market for polyethylene terephthalate, fines', 'PET fines.', 'GLO'),
+    d('granulate', 'market for polyethylene terephthalate, granulate, amorphous', 'PET granulate.', 'GLO')
+  ];
+  assert.equal(E.suggest(catalog, 'PET granulato').chains[0].steps[0].dataset.id, 'granulate');
+});
+
+test('plastic finishing cannot append steel powder coating', () => {
+  const catalog = [
+    d('pp', 'market for polypropylene, granulate', 'PP.', 'GLO'),
+    d('steel', 'powder coating, steel', 'This is delivering the service of powder coating steel.')
+  ];
+  const result = E.suggest(catalog, 'plastica verniciata');
+  assert.deepEqual(result.chains[0].steps.map(s => s.dataset.id), ['pp']);
+  assert.match(result.chains[0].checks.join(' '), /materiale diverso/);
+});
