@@ -24,8 +24,10 @@
   async function importFile(file, kind) {
     if (!file) return;
     try {
-      if (file.size > 40 * 1024 * 1024) throw new Error('File superiore a 40 MB. Esporta un catalogo CSV più compatto.');
-      const parsed = C.parseDelimited(await file.text());
+      if (file.size > 40 * 1024 * 1024) throw new Error('File superiore a 40 MB. Seleziona un catalogo più compatto.');
+      notify('Lettura del file in corso…');
+      await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+      const parsed = /\.xlsx$/i.test(file.name) ? await window.XlsxReader.read(await file.arrayBuffer()) : C.parseDelimited(await file.text());
       state.parsed[kind] = parsed;
       renderMap(kind);
       notify(`${parsed.rows.length.toLocaleString('it-IT')} righe lette. Controlla le colonne e conferma.`);
@@ -46,13 +48,13 @@
     state.version = 'DEMO · dati sintetici, non ecoinvent';
     $('#version').value = state.version;
     state.bom.forEach(item => { item.selected = { material: null, transformation: null, finishing: null }; });
-    status(); renderBom(); renderQA(); tabs('finder'); notify('Catalogo sintetico caricato. Non utilizzare i risultati per studi LCA.');
+    populateFilters(); status(); renderBom(); renderQA(); tabs('finder'); notify('Catalogo sintetico caricato. Non utilizzare i risultati per studi LCA.');
   });
   function renderMap(kind) {
     const parsed = state.parsed[kind], map = C.autoMap(parsed.headers, kind);
     const box = kind === 'datasets' ? $('#dataset-map') : $('#bom-map');
     const labels = kind === 'datasets' ? {
-      activity: 'Activity name *', product: 'Reference product *', geography: 'Geography', unit: 'Unit', classification: 'Classification', uuid: 'UUID'
+      activity: 'Activity Name *', product: 'Reference product (facoltativo)', geography: 'Geography', unit: 'Unit', activityType: 'Special Activity Type', sector: 'Sector', information: 'Product Information', classification: 'Classification', uuid: 'UUID'
     } : {
       component: 'Component *', material: 'Material *', grade: 'Material specification', mass: 'Mass', unit: 'Mass unit', form: 'Semi-finished form', process: 'Manufacturing process', finishing: 'Finishing', geography: 'Supplier country'
     };
@@ -63,12 +65,14 @@
     const button = e.target.closest('[data-apply]'); if (!button) return;
     const kind = button.dataset.apply, box = kind === 'datasets' ? $('#dataset-map') : $('#bom-map');
     const map = Object.fromEntries([...box.querySelectorAll('[data-field]')].map(s => [s.dataset.field, s.value]));
-    if (kind === 'datasets' && (!map.activity || !map.product) || kind === 'bom' && (!map.component || !map.material)) { notify('Associa le colonne obbligatorie.'); return; }
+    if (kind === 'datasets' && !map.activity || kind === 'bom' && (!map.component || !map.material)) { notify('Associa le colonne obbligatorie.'); return; }
     if (kind === 'datasets') {
       const next = C.normalizeDatasets(state.parsed.datasets.rows, map);
       if (!next.length) { notify('Nessun dataset valido: verifica le colonne selezionate.'); return; }
       state.datasets = next;
-      state.bom.forEach(item => { for (const key of Object.keys(item.selected)) if (item.selected[key] && !byId().has(item.selected[key])) item.selected[key] = null; });
+      delete state.parsed.datasets;
+      state.bom.forEach(item => { item.selected = { material: null, transformation: null, finishing: null }; });
+      populateFilters();
       notify(`${next.length.toLocaleString('it-IT')} dataset disponibili.`); tabs('finder');
     } else {
       state.bom = C.normalizeBom(state.parsed.bom.rows, map);
@@ -78,14 +82,28 @@
   });
   function datasetCard(hit, action = '') {
     const d = hit.dataset;
-    return `<article class="dataset"><div class="score">${hit.score}<small>match</small></div><div><strong>${esc(d.activity)}</strong><p>${esc(d.product)} <span class="tag">${esc(d.geography || '—')}</span> <span class="tag">${esc(d.unit || '—')}</span> <span class="tag">${esc(hit.kind)}</span></p><small>${esc(hit.reasons.join(' · ') || 'corrispondenza parziale')} · ${esc(state.version || 'Versione da indicare')}</small></div>${action}</article>`;
+    return `<article class="dataset"><div class="score">${hit.score}<small>match</small></div><div><strong>${esc(d.activity)}</strong><p>${d.product ? `${esc(d.product)} · ` : ''}<span class="tag">${esc(d.geography || '—')}</span> <span class="tag">${esc(d.unit || '—')}</span> <span class="tag">${esc(hit.kind)}</span></p><small>${esc(hit.reasons.join(' · ') || 'corrispondenza parziale')} · ${esc(state.version || 'Versione da indicare')}</small></div>${action}</article>`;
   }
-  function finder() {
+  function populateFilters() {
+    for (const [id, values] of [['#search-geo', [...new Set(state.datasets.map(d => d.geography).filter(Boolean))]], ['#search-unit', [...new Set(state.datasets.map(d => d.unit).filter(Boolean))]]]) {
+      const select = $(id), current = select.value, label = id === '#search-geo' ? 'Tutte' : 'Qualsiasi';
+      select.innerHTML = `<option value="">${label}</option>${values.sort((a, b) => a.localeCompare(b)).map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('')}`;
+      if (values.includes(current)) select.value = current;
+    }
+  }
+  function finderCard(hit) {
+    const d = hit.dataset;
+    const geos = hit.alternatives.map(x => x.geography || '—').filter((x, i, list) => list.indexOf(x) === i);
+    return `<article class="dataset"><div class="score">${hit.score}<small>match</small></div><div><strong>${esc(d.activity)}</strong><p><span class="tag">${esc(hit.kind)}</span> <span class="tag">${esc(d.unit || '—')}</span> ${geos.slice(0, 10).map(g => `<span class="tag">${esc(g)}</span>`).join(' ')}${geos.length > 10 ? ` +${geos.length - 10}` : ''}</p><small>${esc(hit.reasons.join(' · '))}${d.sector ? ` · ${esc(d.sector)}` : ''}</small>${d.product || d.information || d.activityType ? `<details><summary>Dettagli del processo</summary>${d.product ? `<p><b>Reference product:</b> ${esc(d.product)}</p>` : ''}${d.activityType ? `<p><b>Special Activity Type:</b> ${esc(d.activityType)}</p>` : ''}${d.information ? `<p><b>Product Information:</b> ${esc(d.information.slice(0, 1200))}${d.information.length > 1200 ? '…' : ''}</p>` : ''}<p>Versione: ${esc(state.version || 'da indicare')}</p></details>` : ''}</div></article>`;
+  }
+  async function finder() {
     if (!state.datasets.length) { $('#finder-results').innerHTML = '<p class="empty">Carica prima un catalogo.</p>'; return; }
     const q = $('#search-query').value.trim();
     if (!q) { notify('Inserisci un termine di ricerca.'); return; }
-    const hits = C.search(state.datasets, q, $('#search-stage').value, { geography: $('#search-geo').value.trim(), unit: $('#search-unit').value, type: $('#search-type').value }, 40);
-    $('#finder-results').innerHTML = hits.length ? `<p class="result-note">${hits.length} risultati migliori · punteggio euristico, non garanzia di idoneità</p>${hits.map(h => datasetCard(h)).join('')}` : '<p class="empty">Nessun risultato. Prova con termini più generici o un sinonimo.</p>';
+    $('#finder-results').innerHTML = '<p class="empty">Ricerca nel catalogo in corso…</p>';
+    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    const hits = C.searchGrouped(state.datasets, q, $('#search-stage').value, { geography: $('#search-geo').value, strictGeography: true, unit: $('#search-unit').value, strictUnit: true, type: $('#search-type').value }, 30);
+    $('#finder-results').innerHTML = hits.results.length ? `<p class="result-note">${hits.totalActivities.toLocaleString('it-IT')} attività corrispondenti (${hits.totalDatasets.toLocaleString('it-IT')} varianti geografiche) · prime ${hits.results.length} per somiglianza</p>${hits.results.map(finderCard).join('')}` : '<p class="empty">Nessun risultato. Prova con termini più generici o cambia i filtri.</p>';
   }
   $('#search-btn').addEventListener('click', finder);
   $('#search-query').addEventListener('keydown', e => { if (e.key === 'Enter') finder(); });
@@ -177,7 +195,7 @@
       const data = JSON.parse(await file.text());
       if (data.schema !== 1 || !Array.isArray(data.datasets) || !Array.isArray(data.bom)) throw new Error('Formato progetto non riconosciuto.');
       state.version = String(data.version || ''); state.datasets = data.datasets; state.bom = data.bom;
-      $('#version').value = state.version; status(); renderBom(); renderQA(); tabs('audit'); notify('Progetto caricato.');
+      $('#version').value = state.version; populateFilters(); status(); renderBom(); renderQA(); tabs('audit'); notify('Progetto caricato.');
     } catch (err) { notify(err.message); }
     e.target.value = '';
   });
