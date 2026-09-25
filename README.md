@@ -15,6 +15,7 @@ Scarica il repository e apri `index.html` con Edge o Chrome. Non serve installar
 - **Catalogo ecoinvent:** esporta dal tuo accesso autorizzato un CSV/TSV con `Activity name` e `Reference product`; consigliati anche `Geography`, `Unit`, `Classification`, `Activity UUID`. Indica manualmente versione e system model. Il catalogo non è incluso nel repository.
 - **BOM:** CSV/TSV esportato da Excel con almeno `Component` e `Material`. Scarica dall'app il modello che include massa, unità, specifica, forma, processo, finitura e paese fornitore.
 - Le intestazioni si possono associare manualmente all'importazione. CSV con separatore `;`, `,` o tabulazione e campi con virgolette sono supportati. Per numeri decimali con virgola usa il separatore `;` o tabulazione.
+- Puoi provare l'interfaccia con il **catalogo dimostrativo sintetico** e la BOM dimostrativa integrati. I nomi del catalogo demo sono inventati per il test e non sono dati ecoinvent.
 
 ## Lavoro
 
