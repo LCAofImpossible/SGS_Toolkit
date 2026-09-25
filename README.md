@@ -8,7 +8,9 @@ Prima versione di un tool locale per cercare dataset ecoinvent e costruire una c
 
 ## Avvio
 
-Scarica il repository e apri `index.html` con Edge o Chrome. Non serve installare software, avviare un server, accedere a una CDN o configurare API. Non è abilitato alcun trasferimento di file. Gli input restano nella memoria della pagina e si perdono alla chiusura, salvo esportazione esplicita del progetto JSON.
+Apri il sito GitHub Pages oppure scarica il repository e apri `index.html` con Edge o Chrome. Non serve installare software, avviare un server, accedere a una CDN o configurare API. Non è abilitato alcun trasferimento di file.
+
+Al primo utilizzo carica il catalogo ecoinvent e conferma le colonne. Il file originale viene conservato **solo nell'IndexedDB del browser** e caricato automaticamente alle aperture successive. Il pulsante **Rimuovi dal browser** elimina la copia locale. Su un altro PC o in un altro profilo/browser serve un primo caricamento separato. Anche la cancellazione dei dati del sito o la modalità privata può cancellare questa copia. Il database ecoinvent non è nel repository né sul server GitHub Pages. Le BOM e i progetti non vengono salvati automaticamente.
 
 ## Input
 
