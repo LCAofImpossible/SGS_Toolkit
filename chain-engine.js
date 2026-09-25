@@ -8,6 +8,9 @@
   const materialFamilies = [
     { re: /\b(abs|acrylonitrile butadiene styrene)\b/i, query: 'acrylonitrile butadiene styrene copolymer', family: 'abs' },
     { re: /\b(polypropylene|polipropilene|pp)\b/i, query: 'polypropylene', family: 'polypropylene' },
+    { re: /\b(pet|polyethylene terephthalate|polietilene tereftalato)\b/i, query: 'polyethylene terephthalate', family: 'pet' },
+    { re: /\b(hdpe|pehd|pe hd|polietilene ad alta densit[aà]|high density polyethylene)\b/i, query: 'polyethylene high density granulate', family: 'polyethylene' },
+    { re: /\b(ldpe|peld|pe ld|polietilene a bassa densit[aà]|low density polyethylene)\b/i, query: 'polyethylene low density granulate', family: 'polyethylene' },
     { re: /\b(polyethylene|polietilene|pe)\b/i, query: 'polyethylene', family: 'polyethylene' },
     { re: /\b(aisi\s*30[46]|stainless steel|acciaio inox|chromium steel)\b/i, query: 'steel chromium steel 18/8', family: 'stainless' },
     { re: /\b(aluminium|aluminum|alluminio|al\s*6060|en aw\s*6060)\b/i, query: 'aluminium wrought alloy', family: 'aluminium' },
@@ -17,13 +20,13 @@
     { re: /\b(concrete|calcestruzzo)\b/i, query: 'concrete', family: 'concrete' },
     { re: /\b(glass|vetro)\b/i, query: 'glass', family: 'glass' },
     { re: /\b(pvc|polyvinyl chloride|polivinilcloruro)\b/i, query: 'polyvinylchloride', family: 'pvc' },
-    { re: /\b(pet|polyethylene terephthalate|polietilene tereftalato)\b/i, query: 'polyethylene terephthalate', family: 'pet' }
+    { re: /\b(plastica|plastic|polimero|polymer)\b/i, query: '', family: 'plastic' }
   ];
   function parseDescription(description) {
     const raw = String(description || '');
     const material = materialFamilies.find(x => x.re.test(raw));
     const family = material?.family || '';
-    const form = /\b(profile|profilo|estruso)\b/i.test(raw) ? 'profile' : /\b(sheet|lamiera|lastra|coil|nastro)\b/i.test(raw) ? 'sheet' : /\b(pipe|tubo)\b/i.test(raw) ? 'pipe' : '';
+    const form = /\b(profile|profilo|estruso)\b/i.test(raw) ? 'profile' : /\b(sheet|lamiera|lastra|coil|nastro)\b/i.test(raw) ? 'sheet' : /\b(pipe|tubo)\b/i.test(raw) ? 'pipe' : /\b(granul[oi]|granulat[oe]|pellet[s]?)\b/i.test(raw) ? 'granulate' : '';
     const blastFurnace = /\b(altoforno|blast furnace)\b/i.test(raw);
     let transformation = '';
     if (/estrus|extrud|extrusion/i.test(raw)) transformation = family === 'aluminium' ? 'section bar extrusion aluminium' : 'extrusion';
@@ -37,7 +40,8 @@
     else if (/pressofus|die cast/i.test(raw)) transformation = 'die casting';
     else if (/saldat|welding/i.test(raw)) transformation = 'welding';
     const finishing = /anodiz|anodis|anodiz/i.test(raw) ? 'anodising aluminium' : /zincat|galvaniz|zinc coat/i.test(raw) ? `zinc coating ${form === 'sheet' ? 'coils' : 'pieces'}` : /verniciat|powder coat/i.test(raw) ? 'powder coating' : '';
-    return { material: material?.query || '', transformation, finishing, form, family, blastFurnace };
+    const materialQuery = family === 'pet' ? /bottle|bottiglia/i.test(raw) ? 'polyethylene terephthalate granulate bottle grade' : 'polyethylene terephthalate granulate amorphous' : material?.query || '';
+    return { material: materialQuery, transformation, finishing, form, family, blastFurnace };
   }
   function describeDataset(d) {
     const information = String(d.information || '');
@@ -59,12 +63,66 @@
   }
   function bestBy(hits, predicate) { return hits.find(h => predicate(h.dataset, describeDataset(h.dataset)))?.dataset || null; }
   function step(role, dataset) { return { role, dataset }; }
+  function materialAlternatives(datasets, description, filters = {}) {
+    const spec = parseDescription(description);
+    const recycled = /riciclat|recycl/i.test(description);
+    const broadPlastic = spec.family === 'plastic';
+    const broadPE = spec.family === 'polyethylene' && spec.material === 'polyethylene';
+    const specificRecycled = {
+      polypropylene: [['PP riciclato', 'market for polypropylene, pellets, recycled']],
+      pet: /bottle|bottiglia/i.test(description) ? [['PET bottle grade riciclato', 'market for polyethylene terephthalate, granulate, bottle grade, recycled']] : [['PET riciclato', 'market for polyethylene terephthalate, granulate, amorphous, recycled']],
+      abs: [['ABS riciclato', 'market for acrylonitrile-butadiene-styrene, pellets, recycled']],
+      pvc: [['PVC rigido riciclato', 'market for polyvinylchloride, rigid, pellets, recycled'], ['PVC flessibile riciclato', 'market for polyvinylchloride, flexible, pellets, recycled']],
+      polyethylene: spec.material.includes('high density') ? [['PE-HD riciclato', 'market for polyethylene, high density, granulate, recycled']]
+        : spec.material.includes('low density') ? [['PE-LD riciclato', 'market for polyethylene, low density, pellets, recycled']] : []
+    };
+    if (!broadPlastic && !broadPE && !(recycled && specificRecycled[spec.family])) return [];
+    const names = recycled && !broadPlastic && !broadPE ? specificRecycled[spec.family] : broadPE ? (recycled ? [
+      ['PE-HD riciclato', 'market for polyethylene, high density, granulate, recycled'],
+      ['PE-LD riciclato', 'market for polyethylene, low density, pellets, recycled']
+    ] : [
+      ['PE-HD', 'market for polyethylene, high density, granulate'],
+      ['PE-LD', 'market for polyethylene, low density, granulate']
+    ]) : recycled ? [
+      ['Plastica riciclata non specificata', 'market for plastic granulate, unspecified, recycled'],
+      ['PP riciclato', 'market for polypropylene, pellets, recycled'],
+      ['PE-HD riciclato', 'market for polyethylene, high density, granulate, recycled'],
+      ['PET riciclato', 'market for polyethylene terephthalate, granulate, amorphous, recycled']
+    ] : [
+      ['PP', 'market for polypropylene, granulate'],
+      ['PE-HD', 'market for polyethylene, high density, granulate'],
+      ['PE-LD', 'market for polyethylene, low density, granulate'],
+      ['PET', 'market for polyethylene terephthalate, granulate, amorphous'],
+      ...(!spec.form ? [['ABS', 'market for acrylonitrile-butadiene-styrene copolymer']] : []),
+      ['Plastica riciclata non specificata', spec.form === 'granulate' ? 'market for plastic granulate, unspecified, recycled' : 'market for plastic, mixed, recycled']
+    ];
+    const wanted = new Map(names.map(([, activity]) => [activity.toLowerCase(), []]));
+    for (const d of datasets) {
+      const matches = wanted.get(String(d.activity || '').toLowerCase());
+      if (matches && d.unit === 'kg' && (!filters.geography || d.geography.toLowerCase() === filters.geography.toLowerCase())
+        && (!filters.unit || d.unit.toLowerCase() === filters.unit.toLowerCase())) matches.push(d);
+    }
+    return names.map(([label, activity]) => {
+      const alternatives = wanted.get(activity.toLowerCase());
+      const dataset = alternatives.find(d => d.geography === 'GLO') || alternatives.find(d => d.geography === 'RER') || alternatives[0];
+      return dataset && { label, dataset, alternatives };
+    }).filter(Boolean);
+  }
   function addFinish(chain, finish, spec) {
     if (!spec.finishing.trim()) return;
     if (!finish) { chain.checks.push('Finitura richiesta ma nessun servizio sufficientemente pertinente è stato identificato nel catalogo.'); return; }
     const profileMismatch = /profile/.test(norm(spec.form)) && /sheet|coil/.test(norm(finish.activity));
     if (profileMismatch) {
       chain.checks.push(`Finitura non associata: ${finish.activity} riguarda sheet/coil, mentre il componente è un profilo.`);
+      return;
+    }
+    const finishName = norm(finish.activity);
+    const plasticFamily = ['plastic', 'polypropylene', 'polyethylene', 'pet', 'abs', 'pvc'].includes(spec.family);
+    const materialMismatch = plasticFamily && /\b(steel|aluminium|copper)\b/.test(finishName)
+      || spec.family === 'aluminium' && /\bsteel\b/.test(finishName)
+      || ['steel', 'stainless'].includes(spec.family) && /\baluminium\b/.test(finishName);
+    if (materialMismatch) {
+      chain.checks.push(`Finitura non associata: ${finish.activity} riguarda un materiale diverso da quello descritto.`);
       return;
     }
     const meta = describeDataset(finish);
@@ -131,6 +189,28 @@
     const interpretation = parseDescription(description);
     const notes = [];
     if (!String(description || '').trim()) return { interpretation, chains: [], notes, message: 'Descrivi il processo reale da modellare.' };
+    const recycledPlastic = /riciclat|recycl/i.test(description) && ['polypropylene', 'polyethylene', 'pet', 'abs', 'pvc'].includes(interpretation.family);
+    if (interpretation.family === 'plastic' || interpretation.family === 'polyethylene' && interpretation.material === 'polyethylene' || recycledPlastic) {
+      const variants = materialAlternatives(datasets, description);
+      if (recycledPlastic && interpretation.material !== 'polyethylene') notes.push('È indicato materiale riciclato: i candidati devono riferirsi alla stessa origine e alla forma fisica pertinente.');
+      else {
+        const materialName = interpretation.family === 'plastic' ? 'polimero' : 'grado PE';
+        notes.push(`La descrizione non identifica il ${materialName}. Le proposte sono alternative tra loro, non passaggi da sommare. Sono esempi di famiglie disponibili, non un elenco esaustivo: servono tipo di polimero, grado e origine vergine/riciclata per scegliere il dataset corretto.`);
+      }
+      const processName = interpretation.transformation.toLowerCase();
+      const finishName = interpretation.finishing.toLowerCase();
+      const serviceCandidates = processName || finishName ? datasets.filter(d => {
+        const name = String(d.activity || '').toLowerCase();
+        return processName && name.includes(processName) || finishName && name.includes(finishName);
+      }) : [];
+      const chains = variants.map(({ label, dataset }) => {
+        const result = interpretation.transformation || interpretation.finishing ? generate([dataset, ...serviceCandidates], { ...interpretation, material: dataset.activity.replace(/^market for /i, '') }) : null;
+        const candidate = result?.chains.find(c => c.steps.some(s => s.dataset.id === dataset.id)) || (!interpretation.transformation && !interpretation.finishing && { steps: [step('Materiale', dataset)], checks: [], basis: 'Mercato di una possibile famiglia di polimero.' });
+        return candidate && { ...candidate, title: `Ipotesi ${label}${interpretation.transformation ? ' + lavorazione' : ''}`, checks: [...candidate.checks, interpretation.family === 'plastic' || interpretation.material === 'polyethylene' ? `Confermare che il materiale reale sia ${label}; il testo non specifica il polimero o il grado.` : `Confermare che il materiale reale corrisponda al dataset ${label}.`, ...(interpretation.transformation ? ['Confermare che il grado del polimero sia adatto alla lavorazione indicata.'] : [])] };
+      }).filter(Boolean);
+      if (interpretation.transformation && !chains.length) notes.push('La lavorazione indicata non è stata collegata con sufficiente certezza a un servizio del catalogo.');
+      return { interpretation, chains, notes, message: chains.length ? '' : 'Nessuna alternativa coerente trovata nel catalogo per il materiale e la lavorazione descritti.' };
+    }
     if (interpretation.blastFurnace) {
       if (interpretation.family === 'stainless') {
         notes.push('L’altoforno produce ghisa, mentre la descrizione richiede acciaio inox. Non sommare automaticamente una ghisa da altoforno al dataset dell’acciaio inox: servono la rotta produttiva e i relativi flussi.');
@@ -151,5 +231,5 @@
     if (!interpretation.transformation && !interpretation.blastFurnace) notes.push('Non è stata riconosciuta una trasformazione; le proposte coprono il materiale e le eventuali finiture indicate.');
     return { ...result, interpretation, notes };
   }
-  return { parseDescription, describeDataset, generate, suggest };
+  return { parseDescription, describeDataset, materialAlternatives, generate, suggest };
 });
