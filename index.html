@@ -20,20 +20,20 @@
     <main>
       <div class="statusbar"><span id="dataset-count">0 dataset caricati</span><span id="bom-count">0 righe BOM</span><span id="db-version">Versione non indicata</span></div>
       <section id="setup" class="panel active">
-        <div class="heading"><p class="eyebrow">01 / PREPARAZIONE</p><h2>Carica il catalogo dei processi</h2><p>Esporta il catalogo delle attività da ecoinvent in CSV o TSV. Il file resta nella memoria della pagina.</p></div>
-        <div class="card grid2"><label class="upload">Catalogo dataset <input id="dataset-file" type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values"><small>CSV/TSV con almeno Activity name e Reference product</small></label><label>Versione e system model <input id="version" placeholder="es. ecoinvent 3.11 · cut-off"></label></div>
+        <div class="heading"><p class="eyebrow">01 / PREPARAZIONE</p><h2>Carica il catalogo dei processi</h2><p>Seleziona il tuo file Excel ecoinvent oppure un export CSV/TSV. Il file viene letto nel browser.</p></div>
+        <div class="card grid2"><label class="upload">Catalogo dataset <input id="dataset-file" type="file" accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values"><small>XLSX/CSV/TSV. È sufficiente la colonna Activity Name.</small></label><label>Versione e system model <input id="version" placeholder="es. ecoinvent 3.11 · cut-off"></label></div>
         <button id="demo-catalog-btn" class="secondary demo-button">Carica catalogo dimostrativo sintetico</button>
         <div id="dataset-map" class="card mapping hidden"></div>
-        <div class="card help"><h3>Formato minimo dell'export</h3><p>Le intestazioni vengono riconosciute automaticamente oppure puoi scegliere le colonne dopo il caricamento.</p><code>Activity name;Reference product;Geography;Unit;Classification;Activity UUID</code><p class="muted">La classificazione del processo e il punteggio sono euristiche per guidare la ricerca; verifica sempre il contenuto effettivo del dataset e il suo system model.</p></div>
+        <div class="card help"><h3>Colonne del file allegato</h3><p>Il file ecoinvent 3.11 contiene 25.412 righe. Il tool riconosce Activity Name, Geography, Special Activity Type, Sector, Unit e Product Information. Il Reference product, se presente in altri export, resta facoltativo.</p><code>Activity Name | Geography | Special Activity Type | Sector | Unit | Product Information</code><p class="muted">Il punteggio indica la somiglianza con le parole cercate. Il file allegato non specifica il system model: indicarlo manualmente prima di usare i risultati in uno studio.</p></div>
       </section>
       <section id="finder" class="panel">
-        <div class="heading"><p class="eyebrow">02 / RICERCA</p><h2>Dataset Finder</h2><p>Cerca per materiale o processo. I sinonimi italiani e inglesi aiutano il ranking.</p></div>
-        <div class="card"><div class="grid-search"><label>Termini di ricerca<input id="search-query" placeholder="es. aluminium wrought alloy"></label><label>Fase<select id="search-stage"><option value="material">Materiale</option><option value="transformation">Trasformazione</option><option value="finishing">Finitura</option></select></label><label>Geografia preferita<input id="search-geo" placeholder="es. RER"></label><label>Unità<select id="search-unit"><option value="">Qualsiasi</option><option value="kg">kg</option><option value="m2">m²</option><option value="kWh">kWh</option></select></label><label>Tipo<select id="search-type"><option value="both">Entrambi</option><option value="market">Market</option><option value="production">Production</option></select></label></div><button id="search-btn" class="primary">Cerca dataset</button></div>
+        <div class="heading"><p class="eyebrow">02 / RICERCA</p><h2>Dataset Finder</h2><p>Inserisci una o più parole. Il nome dell'attività pesa più della descrizione; risultati e alternative geografiche restano ispezionabili.</p></div>
+        <div class="card"><div class="grid-search"><label>Parole chiave<input id="search-query" placeholder="es. steel sheet rolling"></label><label>Fase preferita<select id="search-stage"><option value="any">Qualsiasi</option><option value="material">Materiale</option><option value="transformation">Trasformazione</option><option value="finishing">Finitura</option></select></label><label>Geografia<select id="search-geo"><option value="">Tutte</option></select></label><label>Unità<select id="search-unit"><option value="">Qualsiasi</option></select></label><label>Tipo di attività<select id="search-type"><option value="both">Tutte</option><option value="market">Market</option><option value="production">Altre attività</option></select></label></div><button id="search-btn" class="primary">Cerca processi</button><p class="muted">La ricerca confronta i termini inglesi e alcuni sinonimi italiani; il punteggio è un ordinamento lessicale, non una valutazione di rappresentatività LCA.</p></div>
         <div id="finder-results" class="results empty">Carica il catalogo e avvia una ricerca.</div>
       </section>
       <section id="mapper" class="panel">
         <div class="heading"><p class="eyebrow">03 / MAPPATURA</p><h2>Una catena per ogni componente</h2><p>Il dataset di materiale è richiesto. Trasformazione e finitura vanno selezionate o motivate come incluse/non applicabili.</p></div>
-        <div class="card grid2"><label class="upload">Importa BOM <input id="bom-file" type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values"><small>CSV/TSV esportato da Excel</small></label><div class="actions"><button id="template-btn" class="secondary">Scarica modello BOM</button><button id="sample-btn" class="secondary">Apri esempio dimostrativo</button></div></div>
+        <div class="card grid2"><label class="upload">Importa BOM <input id="bom-file" type="file" accept=".xlsx,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values"><small>XLSX/CSV/TSV; funzione successiva al Dataset Finder</small></label><div class="actions"><button id="template-btn" class="secondary">Scarica modello BOM</button><button id="sample-btn" class="secondary">Apri esempio dimostrativo</button></div></div>
         <div id="bom-map" class="card mapping hidden"></div>
         <div id="bom-list" class="bom-list empty">Importa una BOM per iniziare.</div>
       </section>
@@ -42,11 +42,11 @@
         <div class="card"><div class="actions"><button id="export-btn" class="primary">Esporta mapping CSV</button><button id="save-btn" class="secondary">Salva progetto JSON</button><label class="file-button">Apri progetto JSON<input id="project-file" type="file" accept=".json,application/json"></label></div><p class="muted">Il progetto JSON include BOM e metadati del catalogo selezionato. Può contenere dati riservati: conserva il file secondo le regole aziendali.</p></div>
         <div id="qa-summary" class="qa-grid"></div><div id="qa-list" class="qa-list empty">Nessuna BOM caricata.</div>
       </section>
-      <footer>SGS Toolkit · Prototype v0.1 · La scelta dei dataset e il riesame restano al professionista responsabile.</footer>
+      <footer>SGS Toolkit · Prototype v0.2 · La scelta dei dataset e il riesame restano al professionista responsabile.</footer>
     </main>
   </div>
   <dialog id="picker"><form method="dialog"><button class="close" aria-label="Chiudi">×</button></form><p class="eyebrow" id="picker-label"></p><h2 id="picker-title">Seleziona un dataset</h2><div class="picker-search"><input id="picker-query" aria-label="Ricerca dataset"><button id="picker-search-btn" class="primary">Cerca</button></div><div id="picker-results"></div></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="core.js"></script><script src="app.js"></script>
+  <script src="vendor/jszip.min.js"></script><script src="xlsx-reader.js"></script><script src="core.js"></script><script src="app.js"></script>
 </body>
 </html>
