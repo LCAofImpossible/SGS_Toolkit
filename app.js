@@ -176,7 +176,7 @@
   function finderCard(hit) {
     const d = hit.dataset;
     const geos = hit.alternatives.map(x => x.geography || '—').filter((x, i, list) => list.indexOf(x) === i);
-    return `<article class="dataset"><div class="score">${hit.score}<small>match</small></div><div><strong>${esc(d.activity)}</strong><p><span class="tag">${esc(hit.kind)}</span> <span class="tag">${esc(d.unit || '—')}</span> ${geos.slice(0, 10).map(g => `<span class="tag">${esc(g)}</span>`).join(' ')}${geos.length > 10 ? ` +${geos.length - 10}` : ''}</p><small>${esc(hit.reasons.join(' · '))}${d.sector ? ` · ${esc(d.sector)}` : ''}</small>${d.product || d.information || d.activityType ? `<details><summary>Dettagli del processo</summary>${d.product ? `<p><b>Reference product:</b> ${esc(d.product)}</p>` : ''}${d.activityType ? `<p><b>Special Activity Type:</b> ${esc(d.activityType)}</p>` : ''}${d.information ? `<p><b>Product Information:</b> ${esc(d.information.slice(0, 1200))}${d.information.length > 1200 ? '…' : ''}</p>` : ''}<p>Versione: ${esc(state.version || 'da indicare')}</p></details>` : ''}</div></article>`;
+    return `<article class="dataset"><div class="score">${esc(hit.score)}<small>${hit.label ? 'ipotesi' : 'match'}</small></div><div>${hit.label ? `<span class="tag">${esc(hit.label)}</span><br>` : ''}<strong>${esc(d.activity)}</strong><p><span class="tag">${esc(hit.kind)}</span> <span class="tag">${esc(d.unit || '—')}</span> ${geos.slice(0, 10).map(g => `<span class="tag">${esc(g)}</span>`).join(' ')}${geos.length > 10 ? ` +${geos.length - 10}` : ''}</p><small>${esc(hit.reasons.join(' · '))}${d.sector ? ` · ${esc(d.sector)}` : ''}</small>${d.product || d.information || d.activityType ? `<details><summary>Dettagli del processo</summary>${d.product ? `<p><b>Reference product:</b> ${esc(d.product)}</p>` : ''}${d.activityType ? `<p><b>Special Activity Type:</b> ${esc(d.activityType)}</p>` : ''}${d.information ? `<p><b>Product Information:</b> ${esc(d.information.slice(0, 1200))}${d.information.length > 1200 ? '…' : ''}</p>` : ''}<p>Versione: ${esc(state.version || 'da indicare')}</p></details>` : ''}</div></article>`;
   }
   async function finder() {
     if (!state.datasets.length) { $('#finder-results').innerHTML = '<p class="empty">Carica prima un catalogo.</p>'; return; }
@@ -184,6 +184,13 @@
     if (!q) { notify('Inserisci un termine di ricerca.'); return; }
     $('#finder-results').innerHTML = '<p class="empty">Ricerca nel catalogo in corso…</p>';
     await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    const interpreted = window.ChainEngine.parseDescription(q);
+    const broadMaterial = interpreted.family === 'plastic' || interpreted.family === 'polyethylene' && interpreted.material === 'polyethylene';
+    if (broadMaterial && !interpreted.transformation && ['any', 'material'].includes($('#search-stage').value) && $('#search-type').value !== 'production') {
+      const options = window.ChainEngine.materialAlternatives(state.datasets, q, { geography: $('#search-geo').value, unit: $('#search-unit').value });
+      $('#finder-results').innerHTML = options.length ? `<p class="result-note">${options.length} famiglie candidate · alternative, non un ranking di adeguatezza. Specifica polimero, grado e origine per restringere la ricerca.</p>${options.map(({ label, dataset, alternatives }) => finderCard({ dataset, alternatives, label, score: '?', kind: 'materiale alternativo', reasons: ['polimero candidato presente nel catalogo'] })).join('')}` : '<p class="empty">Nessun mercato di polimero corrisponde ai filtri selezionati.</p>';
+      return;
+    }
     const hits = C.searchGrouped(state.datasets, q, $('#search-stage').value, { geography: $('#search-geo').value, strictGeography: true, unit: $('#search-unit').value, strictUnit: true, type: $('#search-type').value }, 30);
     $('#finder-results').innerHTML = hits.results.length ? `<p class="result-note">${hits.totalActivities.toLocaleString('it-IT')} attività corrispondenti (${hits.totalDatasets.toLocaleString('it-IT')} varianti geografiche) · prime ${hits.results.length} per somiglianza</p>${hits.results.map(finderCard).join('')}` : '<p class="empty">Nessun risultato. Prova con termini più generici o cambia i filtri.</p>';
   }
