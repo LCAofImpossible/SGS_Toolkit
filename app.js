@@ -107,13 +107,13 @@
     ++state.catalogLoadToken; state.activeCatalogRecord = null;
     resetChainResults();
     state.datasets = [
-      ['market for aluminium, wrought alloy', 'aluminium, wrought alloy'],
-      ['extrusion of aluminium', 'extrusion of aluminium'],
-      ['anodising of aluminium', 'anodising service'],
-      ['market for acrylonitrile butadiene styrene', 'acrylonitrile butadiene styrene'],
-      ['injection moulding of plastic', 'injection moulding service'],
-      ['market for aluminium profile', 'aluminium profile']
-    ].map(([activity, product], i) => ({ id: `demo-${i}`, activity, product, geography: 'RER', unit: 'kg', classification: 'DEMO · dati inventati' }));
+      ['market for aluminium, wrought alloy', 'aluminium, wrought alloy', 'Materiale di mercato dimostrativo.'],
+      ['extrusion of aluminium', 'extrusion service', 'This is delivering the service of extrusion. The converted amount of aluminium is not included into the dataset.'],
+      ['anodising of aluminium', 'anodising service', 'This is delivering the service of anodising. The treated material is not included into the dataset.'],
+      ['market for acrylonitrile butadiene styrene copolymer', 'acrylonitrile butadiene styrene copolymer', 'Materiale di mercato dimostrativo.'],
+      ['injection moulding', 'injection moulding service', 'This is delivering the service of injection moulding. The converted amount of plastics is not included into the dataset.'],
+      ['market for aluminium profile', 'aluminium profile', 'Profilo dimostrativo.']
+    ].map(([activity, product, information], i) => ({ id: `demo-${i}`, activity, product, information, geography: 'RER', unit: 'kg', classification: 'DEMO · dati inventati' }));
     state.version = 'DEMO · dati sintetici, non ecoinvent';
     $('#version').value = state.version;
     state.bom.forEach(item => { item.selected = { material: null, transformation: null, finishing: null }; });
@@ -189,28 +189,21 @@
   }
   $('#search-btn').addEventListener('click', finder);
   $('#search-query').addEventListener('keydown', e => { if (e.key === 'Enter') finder(); });
-  function interpretRealProcess() {
-    const parsed = window.ChainEngine.parseDescription($('#real-process').value);
-    for (const [field, value] of [['material', parsed.material], ['transformation', parsed.transformation], ['finishing', parsed.finishing], ['form', parsed.form]]) $(`#chain-${field}`).value = value;
-    if (!parsed.material && !parsed.transformation) notify('Nessun termine riconosciuto. Compila i campi manualmente.');
-  }
-  $('#interpret-btn').addEventListener('click', interpretRealProcess);
   $('#generate-chains-btn').addEventListener('click', async () => {
     if (!state.datasets.length) { notify('Carica prima il catalogo ecoinvent.'); tabs('setup'); return; }
-    if ($('#real-process').value.trim() && !$('#chain-material').value.trim() && !$('#chain-transformation').value.trim()) interpretRealProcess();
-    const spec = Object.fromEntries(['material', 'transformation', 'finishing', 'form', 'geography'].map(k => [k, $(`#chain-${k}`).value.trim()]));
     $('#chain-results').textContent = 'Analisi del catalogo in corso…';
     $('#chain-results').classList.add('empty');
     await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
-    const result = window.ChainEngine.generate(state.datasets, spec);
+    const result = window.ChainEngine.suggest(state.datasets, $('#real-process').value);
     state.lastChains = result.chains;
     if (!result.chains.length) {
-      $('#chain-results').textContent = result.message;
+      $('#chain-results').innerHTML = `<p>${esc(result.message)}</p>${result.notes.map(n => `<p>${esc(n)}</p>`).join('')}`;
       $('#export-chains-btn').classList.add('hidden');
       return;
     }
     $('#chain-results').classList.remove('empty');
-    $('#chain-results').innerHTML = `<p class="result-note">${result.chains.length} combinazioni candidate · confini e quantità da confermare sulle schede ecoinvent</p>${result.chains.map((chain, i) => `<article class="chain-card"><div class="chain-title"><span class="score">${String(i + 1).padStart(2, '0')}</span><div><h3>${esc(chain.title)}</h3><p>${esc(chain.basis)}</p></div></div><ol>${chain.steps.map(s => { const d = s.dataset, meta = window.ChainEngine.describeDataset(d); return `<li><span class="step-label">${esc(s.role)}</span><strong>${esc(d.activity)}</strong><span class="tag">${esc(d.geography || '—')}</span><span class="tag">${esc(d.unit || '—')}</span>${meta.evidence ? `<small>${esc(meta.evidence)}</small>` : ''}</li>`; }).join('')}</ol>${chain.checks.length ? `<div class="chain-checks"><strong>Da verificare</strong><ul>${chain.checks.map(c => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}</article>`).join('')}`;
+    const inferred = [['Materiale', result.interpretation.material], ['Trasformazione', result.interpretation.transformation], ['Finitura', result.interpretation.finishing], ['Forma', result.interpretation.form]].filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(' · ');
+    $('#chain-results').innerHTML = `<p class="result-note">${result.chains.length} combinazioni candidate · ${esc(inferred || 'interpretazione parziale')}</p>${result.notes.length ? `<div class="chain-checks"><strong>Interpretazione</strong><ul>${result.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>` : ''}${result.chains.map((chain, i) => `<article class="chain-card"><div class="chain-title"><span class="score">${String(i + 1).padStart(2, '0')}</span><div><h3>${esc(chain.title)}</h3><p>${esc(chain.basis)}</p></div></div><ol>${chain.steps.map(s => { const d = s.dataset, meta = window.ChainEngine.describeDataset(d); return `<li><span class="step-label">${esc(s.role)}</span><strong>${esc(d.activity)}</strong><span class="tag">${esc(d.geography || '—')}</span><span class="tag">${esc(d.unit || '—')}</span>${meta.evidence ? `<small>${esc(meta.evidence)}</small>` : ''}</li>`; }).join('')}</ol>${chain.checks.length ? `<div class="chain-checks"><strong>Da verificare</strong><ul>${chain.checks.map(c => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}</article>`).join('')}`;
     $('#export-chains-btn').classList.remove('hidden');
   });
   $('#export-chains-btn').addEventListener('click', () => {
