@@ -33,6 +33,21 @@
   }
   $('#dataset-file').addEventListener('change', e => importFile(e.target.files[0], 'datasets'));
   $('#bom-file').addEventListener('change', e => importFile(e.target.files[0], 'bom'));
+  $('#demo-catalog-btn').addEventListener('click', () => {
+    if (state.datasets.length && !confirm('Sostituire il catalogo attuale con dati dimostrativi sintetici?')) return;
+    state.datasets = [
+      ['market for aluminium, wrought alloy', 'aluminium, wrought alloy'],
+      ['extrusion of aluminium', 'extrusion of aluminium'],
+      ['anodising of aluminium', 'anodising service'],
+      ['market for acrylonitrile butadiene styrene', 'acrylonitrile butadiene styrene'],
+      ['injection moulding of plastic', 'injection moulding service'],
+      ['market for aluminium profile', 'aluminium profile']
+    ].map(([activity, product], i) => ({ id: `demo-${i}`, activity, product, geography: 'RER', unit: 'kg', classification: 'DEMO · dati inventati' }));
+    state.version = 'DEMO · dati sintetici, non ecoinvent';
+    $('#version').value = state.version;
+    state.bom.forEach(item => { item.selected = { material: null, transformation: null, finishing: null }; });
+    status(); renderBom(); renderQA(); tabs('finder'); notify('Catalogo sintetico caricato. Non utilizzare i risultati per studi LCA.');
+  });
   function renderMap(kind) {
     const parsed = state.parsed[kind], map = C.autoMap(parsed.headers, kind);
     const box = kind === 'datasets' ? $('#dataset-map') : $('#bom-map');
