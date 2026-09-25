@@ -45,3 +45,35 @@ test('surface service with different unit is flagged for physical conversion', (
   assert.equal(result.chains[0].steps.length, 3);
   assert.match(result.chains[0].checks.join(' '), /m2/);
 });
+
+test('free description suggests chains without manually assigning stages', () => {
+  const catalog = [
+    d('m', 'market for acrylonitrile-butadiene-styrene copolymer', 'Polymer granulate.', 'GLO'),
+    d('t', 'injection moulding', 'This is delivering the service of injection moulding. The converted amount of plastics is not included into the dataset.')
+  ];
+  const result = E.suggest(catalog, 'Cover in ABS stampato a iniezione');
+  assert.equal(result.interpretation.transformation, 'injection moulding');
+  assert.deepEqual(result.chains[0].steps.map(s => s.dataset.id), ['m', 't']);
+});
+
+test('stainless steel and blast furnace do not become a fabricated combined chain', () => {
+  const catalog = [
+    d('m', 'market for steel, chromium steel 18/8', 'Stainless steel.', 'GLO'),
+    d('e', 'steel production, electric, chromium steel 18/8', 'Electric steel production.'),
+    d('f', 'blast furnace production', 'Infrastructure representing construction of blast furnace.', 'RER', 'unit'),
+    d('p', 'pig iron production', 'Pig iron production.')
+  ];
+  const result = E.suggest(catalog, 'acciaio inox in altoforno');
+  assert.deepEqual(result.chains.map(c => c.steps.map(s => s.dataset.id)), [['m'], ['e']]);
+  assert.match(result.notes.join(' '), /altoforno produce ghisa/);
+});
+
+test('milling service with unspecified workpiece inclusion is conditional', () => {
+  const catalog = [
+    d('m', 'market for steel, chromium steel 18/8', 'Stainless steel.', 'GLO'),
+    d('t', 'chromium steel milling, average', 'This is delivering the service of chromium steel removed by milling. The service includes materials input, energy and infrastructure.')
+  ];
+  const result = E.suggest(catalog, 'acciaio inox fresato');
+  assert.deepEqual(result.chains[0].steps.map(s => s.dataset.id), ['m', 't']);
+  assert.match(result.chains[0].checks.join(' '), /non includa già/);
+});
