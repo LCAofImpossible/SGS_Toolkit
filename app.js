@@ -2,7 +2,7 @@
   'use strict';
   const C = window.MapperCore;
   const $ = selector => document.querySelector(selector);
-  const state = { datasets: [], bom: [], parsed: {}, picker: null, version: '', pendingCatalogFile: null, cachedRecord: null, activeCatalogRecord: null, catalogLoadToken: 0 };
+  const state = { datasets: [], bom: [], parsed: {}, picker: null, version: '', pendingCatalogFile: null, cachedRecord: null, activeCatalogRecord: null, catalogLoadToken: 0, lastChains: [] };
   const byId = () => new Map(state.datasets.map(d => [d.id, d]));
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const notify = msg => { $('#toast').textContent = msg; $('#toast').classList.add('show'); clearTimeout(notify.timer); notify.timer = setTimeout(() => $('#toast').classList.remove('show'), 4500); };
@@ -19,6 +19,12 @@
     $('#dataset-count').textContent = `${state.datasets.length.toLocaleString('it-IT')} dataset caricati`;
     $('#bom-count').textContent = `${state.bom.length} righe BOM`;
     $('#db-version').textContent = state.version || 'Versione non indicata';
+  }
+  function resetChainResults() {
+    state.lastChains = [];
+    $('#chain-results').innerHTML = 'Le combinazioni compariranno qui, con dataset e punti da verificare.';
+    $('#chain-results').classList.add('empty');
+    $('#export-chains-btn').classList.add('hidden');
   }
   $('#version').addEventListener('input', e => { state.version = e.target.value.trim(); status(); });
   $('#version').addEventListener('change', async () => {
@@ -53,6 +59,7 @@
       if (!datasets.length) throw new Error('Il catalogo salvato non contiene attività valide.');
       if (token !== state.catalogLoadToken) return;
       state.datasets = datasets; state.version = record.version || '';
+      resetChainResults();
       state.activeCatalogRecord = record;
       state.bom.forEach(item => { item.selected = { material: null, transformation: null, finishing: null }; });
       $('#version').value = state.version;
@@ -70,6 +77,7 @@
       ++state.catalogLoadToken;
       if (state.activeCatalogRecord) {
         state.datasets = []; state.version = ''; state.activeCatalogRecord = null;
+        resetChainResults();
         $('#version').value = '';
         state.bom.forEach(item => { item.selected = { material: null, transformation: null, finishing: null }; });
         $('#finder-results').innerHTML = '<p class="empty">Carica il catalogo per iniziare.</p>';
@@ -97,6 +105,7 @@
   $('#demo-catalog-btn').addEventListener('click', () => {
     if (state.datasets.length && !confirm('Sostituire il catalogo attuale con dati dimostrativi sintetici?')) return;
     ++state.catalogLoadToken; state.activeCatalogRecord = null;
+    resetChainResults();
     state.datasets = [
       ['market for aluminium, wrought alloy', 'aluminium, wrought alloy'],
       ['extrusion of aluminium', 'extrusion of aluminium'],
@@ -130,6 +139,7 @@
       const next = C.normalizeDatasets(state.parsed.datasets.rows, map);
       if (!next.length) { notify('Nessun dataset valido: verifica le colonne selezionate.'); return; }
       state.datasets = next;
+      resetChainResults();
       delete state.parsed.datasets;
       state.bom.forEach(item => { item.selected = { material: null, transformation: null, finishing: null }; });
       populateFilters();
@@ -179,6 +189,36 @@
   }
   $('#search-btn').addEventListener('click', finder);
   $('#search-query').addEventListener('keydown', e => { if (e.key === 'Enter') finder(); });
+  function interpretRealProcess() {
+    const parsed = window.ChainEngine.parseDescription($('#real-process').value);
+    for (const [field, value] of [['material', parsed.material], ['transformation', parsed.transformation], ['finishing', parsed.finishing], ['form', parsed.form]]) $(`#chain-${field}`).value = value;
+    if (!parsed.material && !parsed.transformation) notify('Nessun termine riconosciuto. Compila i campi manualmente.');
+  }
+  $('#interpret-btn').addEventListener('click', interpretRealProcess);
+  $('#generate-chains-btn').addEventListener('click', async () => {
+    if (!state.datasets.length) { notify('Carica prima il catalogo ecoinvent.'); tabs('setup'); return; }
+    if ($('#real-process').value.trim() && !$('#chain-material').value.trim() && !$('#chain-transformation').value.trim()) interpretRealProcess();
+    const spec = Object.fromEntries(['material', 'transformation', 'finishing', 'form', 'geography'].map(k => [k, $(`#chain-${k}`).value.trim()]));
+    $('#chain-results').textContent = 'Analisi del catalogo in corso…';
+    $('#chain-results').classList.add('empty');
+    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    const result = window.ChainEngine.generate(state.datasets, spec);
+    state.lastChains = result.chains;
+    if (!result.chains.length) {
+      $('#chain-results').textContent = result.message;
+      $('#export-chains-btn').classList.add('hidden');
+      return;
+    }
+    $('#chain-results').classList.remove('empty');
+    $('#chain-results').innerHTML = `<p class="result-note">${result.chains.length} combinazioni candidate · confini e quantità da confermare sulle schede ecoinvent</p>${result.chains.map((chain, i) => `<article class="chain-card"><div class="chain-title"><span class="score">${String(i + 1).padStart(2, '0')}</span><div><h3>${esc(chain.title)}</h3><p>${esc(chain.basis)}</p></div></div><ol>${chain.steps.map(s => { const d = s.dataset, meta = window.ChainEngine.describeDataset(d); return `<li><span class="step-label">${esc(s.role)}</span><strong>${esc(d.activity)}</strong><span class="tag">${esc(d.geography || '—')}</span><span class="tag">${esc(d.unit || '—')}</span>${meta.evidence ? `<small>${esc(meta.evidence)}</small>` : ''}</li>`; }).join('')}</ol>${chain.checks.length ? `<div class="chain-checks"><strong>Da verificare</strong><ul>${chain.checks.map(c => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}</article>`).join('')}`;
+    $('#export-chains-btn').classList.remove('hidden');
+  });
+  $('#export-chains-btn').addEventListener('click', () => {
+    if (!state.lastChains.length) return;
+    const rows = [['Combinazione', 'Passaggio', 'Ruolo', 'Activity Name', 'Geography', 'Unit', 'Motivo', 'Punti da verificare', 'Versione/system model']];
+    state.lastChains.forEach((chain, i) => chain.steps.forEach((s, j) => rows.push([i + 1, j + 1, s.role, s.dataset.activity, s.dataset.geography, s.dataset.unit, chain.basis, chain.checks.join(' | '), state.version])));
+    download('ecoinvent_combinazioni_candidate.csv', C.toCsv(rows), 'text/csv;charset=utf-8');
+  });
   function selectedHtml(item, stage, map) {
     const d = map.get(item.selected[stage]);
     const names = { material: '01 · Produzione materiale', transformation: '02 · Semilavorato', finishing: '03 · Finitura' };
@@ -267,6 +307,7 @@
       const data = JSON.parse(await file.text());
       if (data.schema !== 1 || !Array.isArray(data.datasets) || !Array.isArray(data.bom)) throw new Error('Formato progetto non riconosciuto.');
       state.version = String(data.version || ''); state.datasets = data.datasets; state.bom = data.bom;
+      resetChainResults();
       ++state.catalogLoadToken; state.activeCatalogRecord = null;
       $('#version').value = state.version; populateFilters(); status(); renderBom(); renderQA(); tabs('audit'); notify('Progetto caricato.');
     } catch (err) { notify(err.message); }
