@@ -22,6 +22,7 @@
       <section id="setup" class="panel active">
         <div class="heading"><p class="eyebrow">01 / PREPARAZIONE</p><h2>Carica il catalogo dei processi</h2><p>Esporta il catalogo delle attività da ecoinvent in CSV o TSV. Il file resta nella memoria della pagina.</p></div>
         <div class="card grid2"><label class="upload">Catalogo dataset <input id="dataset-file" type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values"><small>CSV/TSV con almeno Activity name e Reference product</small></label><label>Versione e system model <input id="version" placeholder="es. ecoinvent 3.11 · cut-off"></label></div>
+        <button id="demo-catalog-btn" class="secondary demo-button">Carica catalogo dimostrativo sintetico</button>
         <div id="dataset-map" class="card mapping hidden"></div>
         <div class="card help"><h3>Formato minimo dell'export</h3><p>Le intestazioni vengono riconosciute automaticamente oppure puoi scegliere le colonne dopo il caricamento.</p><code>Activity name;Reference product;Geography;Unit;Classification;Activity UUID</code><p class="muted">La classificazione del processo e il punteggio sono euristiche per guidare la ricerca; verifica sempre il contenuto effettivo del dataset e il suo system model.</p></div>
       </section>
