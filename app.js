@@ -2,7 +2,7 @@
   'use strict';
   const C = window.MapperCore;
   const $ = selector => document.querySelector(selector);
-  const state = { datasets: [], bom: [], parsed: {}, picker: null, version: '' };
+  const state = { datasets: [], bom: [], parsed: {}, picker: null, version: '', pendingCatalogFile: null, cachedRecord: null, activeCatalogRecord: null, catalogLoadToken: 0 };
   const byId = () => new Map(state.datasets.map(d => [d.id, d]));
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const notify = msg => { $('#toast').textContent = msg; $('#toast').classList.add('show'); clearTimeout(notify.timer); notify.timer = setTimeout(() => $('#toast').classList.remove('show'), 4500); };
@@ -21,14 +21,73 @@
     $('#db-version').textContent = state.version || 'Versione non indicata';
   }
   $('#version').addEventListener('input', e => { state.version = e.target.value.trim(); status(); });
+  $('#version').addEventListener('change', async () => {
+    if (!state.activeCatalogRecord) return;
+    const record = { ...state.activeCatalogRecord, version: state.version, savedAt: new Date().toISOString() };
+    try {
+      await window.CatalogStore.save(record);
+      state.activeCatalogRecord = record; state.cachedRecord = record; renderCacheStatus();
+    } catch (error) { notify(`Versione non salvata nel browser: ${error.message}`); }
+  });
+  function renderCacheStatus() {
+    const record = state.cachedRecord;
+    $('#catalog-cache-status').textContent = record
+      ? `${record.name} · ${Number(record.count || 0).toLocaleString('it-IT')} attività · memorizzato su questo dispositivo il ${new Date(record.savedAt).toLocaleString('it-IT')}.`
+      : 'Nessun catalogo memorizzato su questo browser. Caricalo una volta per ritrovarlo alle prossime aperture.';
+    $('#restore-catalog-btn').classList.toggle('hidden', !record);
+    $('#remove-catalog-btn').classList.toggle('hidden', !record);
+  }
+  async function parseCatalogFile(file, name) {
+    return /\.xlsx$/i.test(name) ? window.XlsxReader.read(await file.arrayBuffer()) : C.parseDelimited(await file.text());
+  }
+  async function restoreSavedCatalog() {
+    const token = ++state.catalogLoadToken;
+    try {
+      const record = await window.CatalogStore.load();
+      if (token !== state.catalogLoadToken) return;
+      state.cachedRecord = record || null;
+      renderCacheStatus();
+      if (!record) return;
+      const parsed = await parseCatalogFile(record.blob, record.name);
+      const datasets = C.normalizeDatasets(parsed.rows, record.map);
+      if (!datasets.length) throw new Error('Il catalogo salvato non contiene attività valide.');
+      if (token !== state.catalogLoadToken) return;
+      state.datasets = datasets; state.version = record.version || '';
+      state.activeCatalogRecord = record;
+      state.bom.forEach(item => { item.selected = { material: null, transformation: null, finishing: null }; });
+      $('#version').value = state.version;
+      populateFilters(); status(); renderBom(); renderQA(); tabs('finder');
+      notify(`${datasets.length.toLocaleString('it-IT')} attività ripristinate dal browser.`);
+    } catch (error) {
+      if (token !== state.catalogLoadToken) return;
+      $('#catalog-cache-status').textContent = `Archivio locale non disponibile: ${error.message}. Puoi caricare il file manualmente.`;
+    }
+  }
+  $('#restore-catalog-btn').addEventListener('click', restoreSavedCatalog);
+  $('#remove-catalog-btn').addEventListener('click', async () => {
+    try {
+      await window.CatalogStore.remove();
+      ++state.catalogLoadToken;
+      if (state.activeCatalogRecord) {
+        state.datasets = []; state.version = ''; state.activeCatalogRecord = null;
+        $('#version').value = '';
+        state.bom.forEach(item => { item.selected = { material: null, transformation: null, finishing: null }; });
+        $('#finder-results').innerHTML = '<p class="empty">Carica il catalogo per iniziare.</p>';
+        populateFilters(); status(); renderBom(); renderQA(); tabs('setup');
+      }
+      state.cachedRecord = null; renderCacheStatus(); notify('Catalogo rimosso dal browser.');
+    } catch (error) { notify(`Impossibile rimuovere il catalogo: ${error.message}`); }
+  });
   async function importFile(file, kind) {
     if (!file) return;
     try {
+      if (kind === 'datasets') ++state.catalogLoadToken;
       if (file.size > 40 * 1024 * 1024) throw new Error('File superiore a 40 MB. Seleziona un catalogo più compatto.');
       notify('Lettura del file in corso…');
       await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
-      const parsed = /\.xlsx$/i.test(file.name) ? await window.XlsxReader.read(await file.arrayBuffer()) : C.parseDelimited(await file.text());
+      const parsed = await parseCatalogFile(file, file.name);
       state.parsed[kind] = parsed;
+      if (kind === 'datasets') state.pendingCatalogFile = file;
       renderMap(kind);
       notify(`${parsed.rows.length.toLocaleString('it-IT')} righe lette. Controlla le colonne e conferma.`);
     } catch (e) { notify(e.message); }
@@ -37,6 +96,7 @@
   $('#bom-file').addEventListener('change', e => importFile(e.target.files[0], 'bom'));
   $('#demo-catalog-btn').addEventListener('click', () => {
     if (state.datasets.length && !confirm('Sostituire il catalogo attuale con dati dimostrativi sintetici?')) return;
+    ++state.catalogLoadToken; state.activeCatalogRecord = null;
     state.datasets = [
       ['market for aluminium, wrought alloy', 'aluminium, wrought alloy'],
       ['extrusion of aluminium', 'extrusion of aluminium'],
@@ -61,7 +121,7 @@
     box.innerHTML = `<h3>Associa le colonne · ${parsed.rows.length.toLocaleString('it-IT')} righe</h3><div class="field-grid">${Object.entries(labels).map(([key, label]) => `<label>${label}<select data-field="${key}"><option value="">— Non presente —</option>${parsed.headers.map(h => `<option value="${esc(h)}" ${map[key] === h ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select></label>`).join('')}</div><button class="primary" data-apply="${kind}">Conferma importazione</button>`;
     box.classList.remove('hidden');
   }
-  document.addEventListener('click', e => {
+  document.addEventListener('click', async e => {
     const button = e.target.closest('[data-apply]'); if (!button) return;
     const kind = button.dataset.apply, box = kind === 'datasets' ? $('#dataset-map') : $('#bom-map');
     const map = Object.fromEntries([...box.querySelectorAll('[data-field]')].map(s => [s.dataset.field, s.value]));
@@ -73,7 +133,19 @@
       delete state.parsed.datasets;
       state.bom.forEach(item => { item.selected = { material: null, transformation: null, finishing: null }; });
       populateFilters();
-      notify(`${next.length.toLocaleString('it-IT')} dataset disponibili.`); tabs('finder');
+      box.classList.add('hidden'); status(); renderBom(); renderQA(); tabs('finder');
+      notify(`${next.length.toLocaleString('it-IT')} dataset disponibili. Salvataggio locale in corso…`);
+      const file = state.pendingCatalogFile;
+      if (file) {
+        const record = { name: file.name, blob: file, map, version: state.version, count: next.length, savedAt: new Date().toISOString() };
+        state.activeCatalogRecord = record;
+        try {
+          await window.CatalogStore.save(record);
+          state.cachedRecord = record; renderCacheStatus(); notify('Catalogo memorizzato in questo browser.');
+        } catch (error) { notify(`Catalogo utilizzabile ora, ma non memorizzato: ${error.message}`); }
+        state.pendingCatalogFile = null;
+      }
+      return;
     } else {
       state.bom = C.normalizeBom(state.parsed.bom.rows, map);
       notify(`${state.bom.length} componenti importati.`); tabs('mapper');
@@ -195,9 +267,10 @@
       const data = JSON.parse(await file.text());
       if (data.schema !== 1 || !Array.isArray(data.datasets) || !Array.isArray(data.bom)) throw new Error('Formato progetto non riconosciuto.');
       state.version = String(data.version || ''); state.datasets = data.datasets; state.bom = data.bom;
+      ++state.catalogLoadToken; state.activeCatalogRecord = null;
       $('#version').value = state.version; populateFilters(); status(); renderBom(); renderQA(); tabs('audit'); notify('Progetto caricato.');
     } catch (err) { notify(err.message); }
     e.target.value = '';
   });
-  renderQA(); status();
+  renderQA(); status(); restoreSavedCatalog();
 })();
